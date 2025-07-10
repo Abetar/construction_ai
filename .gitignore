@@ -1,0 +1,35 @@
+# Entornos virtuales
+env/
+.venv/
+venv/
+ENV/
+
+# Archivos temporales de Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.log
+
+# Archivos de Jupyter/VSCode/IDE
+.ipynb_checkpoints/
+.vscode/
+*.swp
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Datos personales o locales que no deseas exponer
+*.csv
+*.xlsx
+
+# Modelos entrenados (si no los quieres subir)
+# modelo_clasificacion_realista.joblib
+# modelo_regresion_realista.joblib
+
+# Notebooks o scripts de prueba
+test.py
+verifica_columnas.py
+train.py
