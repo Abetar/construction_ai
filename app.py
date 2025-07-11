@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import joblib
+import plotly.express as px
+from xgboost import plot_importance
 import numpy as np
 
 # 📦 Cargar modelos v2
@@ -16,6 +18,46 @@ mod_reg = modelo_reg["model"]
 st.set_page_config(page_title="Predicción de Retrasos v2", layout="wide")
 st.title("🏗️ Predicción de Retrasos en Obras de Construcción")
 
+tabs = st.tabs(["📋 Formulario", "🧠 Explicación del modelo"])
+
+with tabs[0]:
+    # Aquí va TODO lo del formulario y predicción que ya tienes
+    pass
+
+with tabs[1]:
+    st.markdown("### 🧠 ¿Qué variables pesan más en la predicción?")
+    try:
+        booster = mod_clas.get_booster()
+        features = modelo_clas.get("features", [])
+
+        # Asignar nombres reales al booster si están disponibles
+        if features:
+            booster.feature_names = features
+
+        importancia = booster.get_score(importance_type='gain', fmap='')
+
+        # Ordenar para mostrar en gráfica
+        importancia_ordenada = sorted(importancia.items(), key=lambda x: x[1], reverse=True)
+        variables = [x[0].replace("num__", "").replace("cat__", "") for x in importancia_ordenada]
+        valores = [x[1] for x in importancia_ordenada]
+
+        # Gráfico interactivo con Plotly
+        fig = px.bar(
+            x=valores, y=variables,
+            orientation='h',
+            labels={'x': 'Importancia (Gain)', 'y': 'Variable'},
+            title='Importancia de variables en la predicción'
+        )
+        fig.update_layout(
+            yaxis={'categoryorder': 'total ascending'},
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font_color='white' if st.get_option("theme.base") == "dark" else 'black'
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    except Exception as e:
+        st.error(f"No se pudo mostrar la importancia: {e}")
+        
 # Listas
 meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -92,6 +134,7 @@ if submit:
     st.markdown("---")
     st.subheader("🔎 Resultados")
 
+    # Muestra textual
     if prob >= 0.7:
         st.error(f"🚨 Riesgo ALTO de retraso\n\n📊 Probabilidad: {prob * 100:.2f}%")
         mostrar_estimar = True
@@ -101,6 +144,7 @@ if submit:
     else:
         st.success(f"✅ Riesgo BAJO de retraso\n\n📊 Probabilidad: {prob * 100:.2f}%")
         mostrar_estimar = False
+
 
     # Estimación adicional
     if mostrar_estimar:
@@ -117,3 +161,32 @@ if submit:
         st.info(f"📆 Retraso estimado: **{dias_estimados:.0f} días**")
         st.info(f"🗓️ Se prevé que el impacto ocurra en **{mes_estimado}**")
         st.info(f"❗ Causa probable: **{causa_probable}**")
+        
+        # 🧠 Explicación contextual adicional
+        factores_clave = []
+
+        if avance_real < avance_prog - 10:
+            factores_clave.append("avance real significativamente por debajo del programado")
+
+        if flujo < presupuesto_act * 0.75:
+            factores_clave.append("flujo financiero insuficiente respecto al presupuesto")
+
+        if contratos > 2:
+            factores_clave.append("múltiples contratos aún por asignar")
+
+        if temporada in ["lluvias", "ciclónica"]:
+            factores_clave.append("temporada climática adversa")
+
+        if riesgo_inundacion == "Alto":
+            factores_clave.append("riesgo de inundación elevado")
+
+        if riesgo_sismico == "Alto":
+            factores_clave.append("zona con alta actividad sísmica")
+
+        # Generar resumen
+        if factores_clave:
+            explicacion = "Los factores que más podrían contribuir al retraso son: " + ", ".join(factores_clave) + "."
+        else:
+            explicacion = "No se detectaron factores críticos evidentes, pero el modelo estima riesgo por combinaciones sutiles de variables."
+
+        st.markdown(f"🔍 **Análisis detallado del caso:** {explicacion}")
