@@ -4,6 +4,11 @@ import joblib
 import plotly.express as px
 from xgboost import plot_importance
 import numpy as np
+from dateutil.relativedelta import relativedelta
+from datetime import datetime, timedelta
+import locale
+locale.setlocale(locale.LC_TIME, "Spanish_Mexico")
+import plotly.graph_objects as go
 
 # 📦 Cargar modelos v2
 modelo_clas = joblib.load("modelo_clasificacion_v2.joblib")
@@ -87,17 +92,22 @@ with st.sidebar.form("formulario"):
     ])
     region = st.selectbox("Región geográfica", regiones)
     mes_inicio = st.selectbox("Mes de inicio", meses)
-    temporada = estimar_temporada(region, mes_inicio)
+    año_inicio = st.selectbox("Año de inicio", list(range(2023, 2027)))
+    fecha_fin_programada = st.date_input("Fecha de fin programada")
+
+    temporada = estimar_temporada(region, mes_inicio)  # Puedes ajustar a usar año si quieres más adelante
 
     riesgo_sismico = st.selectbox("Riesgo sísmico", ["Bajo", "Medio", "Alto"])
     riesgo_inundacion = st.selectbox("Riesgo de inundación", ["Bajo", "Medio", "Alto"])
 
     duracion = st.number_input("Duración planeada (días)", 90, 720, 365)
     m2 = st.number_input("Metros cuadrados de construcción", 100.0, 50000.0, 3000.0)
+
     presupuesto_base = st.number_input("Presupuesto base (millones)", 5.0, 500.0, 50.0)
     presupuesto_act = st.number_input("Presupuesto actualizado (millones)", 5.0, 600.0, 55.0)
     flujo = st.number_input("Flujo erogado (millones)", 0.0, 600.0, 40.0)
     pendiente = presupuesto_act - flujo
+    restante = presupuesto_base - flujo
 
     contratos = st.number_input("Contratos por asignar", 0, 10, 1)
     trabajadores = st.number_input("Trabajadores", 10, 2000, 300)
@@ -106,12 +116,27 @@ with st.sidebar.form("formulario"):
 
     submit = st.form_submit_button("🔍 Predecir")
 
+
 # 🔮 Predicción
 if submit:
+    # Calcular margen de tiempo desde fechas
+    meses_dict = {
+        "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
+        "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
+        "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+    }
+    mes_inicio_num = meses_dict[mes_inicio]
+
+    fecha_inicio_aprox = datetime(año_inicio, mes_inicio_num, 1)
+    fecha_fin_dt = datetime.combine(fecha_fin_programada, datetime.min.time())
+    margen_tiempo_dias = (fecha_fin_dt - fecha_inicio_aprox).days - duracion
+
     datos = pd.DataFrame([{
         "tipo_obra": tipo_obra,
         "region_geografica": region,
         "mes_inicio": mes_inicio,
+        "año_inicio": año_inicio,
+        "fecha_fin_programada": fecha_fin_programada,
         "riesgo_sismico": riesgo_sismico,
         "riesgo_inundacion": riesgo_inundacion,
         "temporada_climatica": temporada,
@@ -121,10 +146,12 @@ if submit:
         "presupuesto_actualizado_mdp": presupuesto_act,
         "flujo_erogado_mdp": flujo,
         "pendiente_en_caja_mdp": pendiente,
+        "presupuesto_restante_mdp": restante,
         "num_contratos_por_asignar": contratos,
         "num_trabajadores": trabajadores,
         "avance_programado_pct": avance_prog,
-        "avance_real_pct": avance_real
+        "avance_real_pct": avance_real,
+        "margen_tiempo_dias": margen_tiempo_dias
     }])
 
     # Clasificación
@@ -134,23 +161,37 @@ if submit:
     st.markdown("---")
     st.subheader("🔎 Resultados")
 
-    # Muestra textual
+    # Determinar nivel de riesgo
     if prob >= 0.7:
-        st.error(f"🚨 Riesgo ALTO de retraso\n\n📊 Probabilidad: {prob * 100:.2f}%")
-        mostrar_estimar = True
+        riesgo_texto = "ALTO"
+        color_fn = st.error
     elif prob >= 0.4:
-        st.warning(f"⚠️ Riesgo MODERADO de retraso\n\n📊 Probabilidad: {prob * 100:.2f}%")
-        mostrar_estimar = True
+        riesgo_texto = "MODERADO"
+        color_fn = st.warning
     else:
-        st.success(f"✅ Riesgo BAJO de retraso\n\n📊 Probabilidad: {prob * 100:.2f}%")
-        mostrar_estimar = False
+        riesgo_texto = "BAJO"
+        color_fn = st.success
 
-
-    # Estimación adicional
+    # Estimación de retraso si aplica
+    mostrar_estimar = prob >= 0.4
     if mostrar_estimar:
         X_proc_r = pre_reg.transform(datos)
         dias_estimados = mod_reg.predict(X_proc_r)[0]
-        mes_estimado = meses[(meses.index(mes_inicio) + int(np.ceil(duracion / 30))) % 12]
+
+        # Ajustar si hay margen suficiente
+        if margen_tiempo_dias >= 60 and dias_estimados < margen_tiempo_dias:
+            riesgo_texto = "BAJO (por margen disponible)"
+            color_fn = st.info
+
+    color_fn(f"📊 Riesgo {riesgo_texto} de retraso\n\nProbabilidad: {prob * 100:.2f}%")
+
+    # Estimación adicional
+    if mostrar_estimar:
+        fecha_final_ajustada = fecha_inicio_aprox + timedelta(days=duracion + dias_estimados)
+
+        mes_retraso = fecha_final_ajustada.strftime("%B")
+        año_retraso = fecha_final_ajustada.year
+
         causa_probable = (
             "Financiero" if flujo < presupuesto_act * 0.75 else
             "Ejecución lenta" if avance_real < avance_prog - 10 else
@@ -158,35 +199,28 @@ if submit:
             "Multifactorial"
         )
 
+        # Gráfico de línea de tiempo
+        fig_tiempo = go.Figure()
+        fig_tiempo.add_trace(go.Scatter(
+            x=[fecha_inicio_aprox, fecha_final_ajustada],
+            y=[1, 1],
+            mode='lines+markers+text',
+            line=dict(color='royalblue', width=4),
+            marker=dict(size=10),
+            text=["Inicio", "Fin estimado"],
+            textposition="top center"
+        ))
+        fig_tiempo.update_layout(
+            title="🕒 Línea de tiempo estimada del proyecto",
+            xaxis_title="Fecha",
+            yaxis=dict(showticklabels=False, showgrid=False, zeroline=False),
+            height=250,
+            margin=dict(l=20, r=20, t=40, b=20)
+        )
+        st.plotly_chart(fig_tiempo, use_container_width=True)
+
+        # Mostrar info adicional
         st.info(f"📆 Retraso estimado: **{dias_estimados:.0f} días**")
-        st.info(f"🗓️ Se prevé que el impacto ocurra en **{mes_estimado}**")
+        st.info(f"🗓️ El retraso impactaría en **{mes_retraso} de {año_retraso}**")
+        st.info(f"📅 Nueva fecha estimada de término: **{fecha_final_ajustada.strftime('%d de %B de %Y')}**")
         st.info(f"❗ Causa probable: **{causa_probable}**")
-        
-        # 🧠 Explicación contextual adicional
-        factores_clave = []
-
-        if avance_real < avance_prog - 10:
-            factores_clave.append("avance real significativamente por debajo del programado")
-
-        if flujo < presupuesto_act * 0.75:
-            factores_clave.append("flujo financiero insuficiente respecto al presupuesto")
-
-        if contratos > 2:
-            factores_clave.append("múltiples contratos aún por asignar")
-
-        if temporada in ["lluvias", "ciclónica"]:
-            factores_clave.append("temporada climática adversa")
-
-        if riesgo_inundacion == "Alto":
-            factores_clave.append("riesgo de inundación elevado")
-
-        if riesgo_sismico == "Alto":
-            factores_clave.append("zona con alta actividad sísmica")
-
-        # Generar resumen
-        if factores_clave:
-            explicacion = "Los factores que más podrían contribuir al retraso son: " + ", ".join(factores_clave) + "."
-        else:
-            explicacion = "No se detectaron factores críticos evidentes, pero el modelo estima riesgo por combinaciones sutiles de variables."
-
-        st.markdown(f"🔍 **Análisis detallado del caso:** {explicacion}")
