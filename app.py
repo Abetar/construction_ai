@@ -7,8 +7,16 @@ import numpy as np
 from dateutil.relativedelta import relativedelta
 from datetime import datetime, timedelta
 import locale
-locale.setlocale(locale.LC_TIME, "Spanish_Mexico")
 import plotly.graph_objects as go
+
+# Configurar localización para fechas en español
+try:
+    locale.setlocale(locale.LC_TIME, "es_MX.utf8")
+except locale.Error:
+    try:
+        locale.setlocale(locale.LC_TIME, "es_ES.utf8")
+    except locale.Error:
+        pass  # Si no se puede, seguirá con el locale predeterminado
 
 # 📦 Cargar modelos v2
 modelo_clas = joblib.load("modelo_clasificacion_v2.joblib")
