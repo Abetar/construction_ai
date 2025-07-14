@@ -5,7 +5,7 @@ import plotly.express as px
 from xgboost import plot_importance
 import numpy as np
 from dateutil.relativedelta import relativedelta
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import locale
 import plotly.graph_objects as go
 
@@ -98,9 +98,10 @@ with st.sidebar.form("formulario"):
     tipo_obra = st.selectbox("Tipo de obra", [
         "Vivienda", "Escuela", "Hospital", "Puente", "Carretera", "Comercial"
     ])
+    anio_actual = date.today().year
     region = st.selectbox("Región geográfica", regiones)
     mes_inicio = st.selectbox("Mes de inicio", meses)
-    año_inicio = st.selectbox("Año de inicio", list(range(2023, 2027)))
+    año_inicio = st.selectbox("Año de inicio", list(range(2020, anio_actual + 1)))
     fecha_fin_programada = st.date_input("Fecha de fin programada")
 
     temporada = estimar_temporada(region, mes_inicio)  # Puedes ajustar a usar año si quieres más adelante
