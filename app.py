@@ -9,16 +9,15 @@ from datetime import datetime, timedelta, date
 import locale
 import plotly.graph_objects as go
 
-# Configurar localización para fechas en español
 try:
     locale.setlocale(locale.LC_TIME, "es_MX.utf8")
 except locale.Error:
     try:
         locale.setlocale(locale.LC_TIME, "es_ES.utf8")
     except locale.Error:
-        pass  # Si no se puede, seguirá con el locale predeterminado
+        pass 
 
-# 📦 Cargar modelos v2
+# Cargar modelos
 modelo_clas = joblib.load("modelo_clasificacion_v2.joblib")
 modelo_reg = joblib.load("modelo_regresion_v2.joblib")
 
@@ -31,14 +30,14 @@ mod_reg = modelo_reg["model"]
 st.set_page_config(page_title="Predicción de Retrasos v2", layout="wide")
 st.title("🏗️ Predicción de Retrasos en Obras de Construcción")
 
-tabs = st.tabs(["📋 Formulario", "🧠 Explicación del modelo"])
+tabs = st.tabs(["📋 Formulario", "Explicación del modelo"])
 
 with tabs[0]:
-    # Aquí va TODO lo del formulario y predicción que ya tienes
+    
     pass
 
 with tabs[1]:
-    st.markdown("### 🧠 ¿Qué variables pesan más en la predicción?")
+    st.markdown("### ¿Qué variables pesan más en la predicción?")
     try:
         booster = mod_clas.get_booster()
         features = modelo_clas.get("features", [])
@@ -54,7 +53,7 @@ with tabs[1]:
         variables = [x[0].replace("num__", "").replace("cat__", "") for x in importancia_ordenada]
         valores = [x[1] for x in importancia_ordenada]
 
-        # Gráfico interactivo con Plotly
+        # Grafico interactivo con Plotly
         fig = px.bar(
             x=valores, y=variables,
             orientation='h',
@@ -82,7 +81,7 @@ temporadas_por_mes = {
     'Octubre': 'ciclónica', 'Noviembre': 'ciclónica', 'Diciembre': 'seca'
 }
 
-# Lógica para estimar temporada
+# Logica para estimar temporada
 def estimar_temporada(region, mes):
     if mes in ['Junio', 'Julio', 'Agosto', 'Septiembre']:
         return 'lluvias'
@@ -126,7 +125,7 @@ with st.sidebar.form("formulario"):
     submit = st.form_submit_button("🔍 Predecir")
 
 
-# 🔮 Predicción
+# Predicción
 if submit:
     # Calcular margen de tiempo desde fechas
     meses_dict = {
