@@ -186,7 +186,6 @@ if submit:
         X_proc_r = pre_reg.transform(datos)
         dias_estimados = mod_reg.predict(X_proc_r)[0]
 
-        # Ajustar si hay margen suficiente
         if margen_tiempo_dias >= 60 and dias_estimados < margen_tiempo_dias:
             riesgo_texto = "BAJO (por margen disponible)"
             color_fn = st.info
